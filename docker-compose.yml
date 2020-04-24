@@ -1,0 +1,53 @@
+version: '3'
+
+services:
+  db:
+    image: postgres:latest
+    hostname: db
+    container_name: db
+    ports:
+    - "5434:5432"
+    environment:
+      POSTGRES_USER: paras123
+      POSTGRES_PASSWORD: paras123
+      POSTGRES_DB: chatapp
+    networks:
+    - network
+    restart: always
+    volumes:
+    - "database:/var/lib/postgresql/data"
+
+
+  chatapp:
+    build:
+      context: /home/utsav/parasdocker/
+    ports:
+    - "85:8000"
+    hostname: chatapp
+    container_name: chatapp
+    networks:
+    - network
+    depends_on:
+    - db
+    restart: always
+
+  nginx:
+    build:
+      context: /home/utsav/parasdocker/nginx/
+    ports:
+    - "80:80"
+    hostname: nginx
+    networks:
+    - network
+    depends_on:
+    - chatapp
+    restart: always
+
+networks:
+  network:
+    driver: bridge
+
+volumes:
+  database:
+
+
