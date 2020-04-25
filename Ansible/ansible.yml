@@ -1,0 +1,110 @@
+---
+
+- hosts: webservers
+  become: yes
+  become_user: root
+  become_method: sudo
+  tasks:
+    
+    - name: Deleting older version
+      command: rm -rf /home/ubuntu/inlinescriptchatapp
+
+    - name: update and upgrade apt packages
+      apt:
+        upgrade: yes
+        update_cache: yes    
+
+    - name: Install required base packages
+      apt: pkg={{ item }} state=present
+      with_items:
+        - python3-pip
+        - python3-dev
+        - git
+        - nginx
+        - postgresql-common
+      tags:
+        - [packages]
+
+    - name: Clone ChatApplication from Github
+      git:
+        repo: https://github.com/parasjitaliya/inlinescriptchatapp.git
+        dest: /home/ubuntu/inlinescriptchatapp
+        version: master
+        force: yes
+
+    - name: Install pip
+      apt:
+        name: python3-pip
+        state: present
+
+    - name: Install virtualenv
+      command: pip3 install virtualenv
+
+    - name: creating virtualenv
+      command: virtualenv -p /usr/bin/python3 /home/ubuntu/inlinescriptchatapp/venv
+
+
+    - name: Activate env
+      command: cd /home/ubuntu/inlinescriptchatapp/venv; source bin/activate
+      command: /home/ubuntu/inlinescriptchatapp/venv/bin/pip3 install -r /home/ubuntu/inlinescriptchatapp/chatroom/requirements.txt
+
+    - name: django extensions
+      command: pip3 install django bcrypt django-extensions
+      
+    - name: Execute
+      file:
+        path: /home/ubuntu/inlinescriptchatapp/chatroom/manage.py
+        mode: '0777'
+
+    - name: collect static files
+      django_manage:
+        command: collectstatic
+        virtualenv: /home/ubuntu/inlinescriptchatapp/venv
+        app_path: /home/ubuntu/inlinescriptchatapp/chatroom
+
+    - name: Change file ownership and permissions
+      file:
+         path: /home/ubuntu/inlinescriptchatapp
+         owner: ubuntu
+         group: www-data
+         mode: '0755'
+         state: directory
+         recurse: yes
+
+    - name: gunicorn service to remote host
+      copy:
+        src: /home/utsav/Ansible/gunicorn.service
+        dest: /etc/systemd/system/
+ 
+    - name: restart service gunicorn
+      systemd:
+        name: gunicorn
+        state: restarted
+        daemon_reload: yes
+        enabled: yes
+
+    - name: execute
+      file:
+        path: /etc/systemd/system/gunicorn.service
+        mode: '0644'
+    
+    - name: Ansible copy file force
+      copy:
+        src: /home/utsav/Ansible/nginx
+        dest: /etc/nginx/sites-available/chatapp
+
+    - name: configuraging nginx
+      command:  nginx -t
+
+    - name: configuration nginx
+      command: ln -s /etc/nginx/sites-available/chatapp /etc/nginx/sites-enabled
+
+    - name: restart service nginx
+      systemd:
+        state: restarted
+        name: nginx
+
+    - name: restart service gunicorn again
+      systemd:
+        state: restarted
+        name: gunicorn 
